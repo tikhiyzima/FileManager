@@ -55,3 +55,14 @@ class TestFManager(unittest.TestCase):
         self.assertEqual(0, actual)
         test.ui.error.assert_called_once()
         test.fs.delete.assert_called_once_with("file1")
+
+
+#		python3 -m unittest test_futils.py
+#		....
+#		----------------------------------------------------------------------
+#		Ran 4 tests in 0.016s
+#		
+#		OK
+
+
+
