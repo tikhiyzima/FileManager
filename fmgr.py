@@ -1,5 +1,7 @@
 import os
 import shutil
+from interfaces import IFileSelector, IFileSystem, IUserInterface
+from ui import ConsoleUI
 
 """ File Manager Console Application 
     Generated with Claude 3.5 Haiku
@@ -14,7 +16,32 @@ import shutil
 """
 
 
-class FileSelector:
+class RealFileSystem(IFileSystem) :
+    def exists(self, path) :
+        return os.path.exists(path)
+	
+    def is_file(self, path) :
+        return os.path.isfile(path)
+
+    def is_dir(self, path) :
+        return os.path.isdir(path)
+
+    def copy(self, src, dst) :
+        shutil.copy2(src, dst)
+
+    def move(self, src, dst) :
+        shutil.move(src, dst)
+
+    def remove_file(self, path) :
+        os.remove(path)
+
+    def remove_dir(self, path) :
+        shutil.rmtree(path)
+
+
+
+
+class FileSelector(IFileSelector) :
     def __init__(self):
         self.selected_files = []
         self.current_directory_contents = []
@@ -62,12 +89,20 @@ class FileSelector:
     def clear_selection(self):
         """Clear the current file selection"""
         self.selected_files.clear()
+        
 
 
-class FileManager:
-    def __init__(self):
+
+
+
+#		sortir les fonctions d'exploration 
+#		pour les mettre dans une classe FileExplorer
+#		
+
+class FileExplorer:
+    def __init__(self, file_selector): 
         self.current_path = os.path.expanduser('~')
-        self.file_selector = FileSelector()
+        self.file_selector = file_selector
 
     def display_directory_contents(self):
         """Display contents of the current directory"""
@@ -104,47 +139,79 @@ class FileManager:
         self.current_path = os.path.dirname(self.current_path)
         self.display_directory_contents()
 
+
+
+
+
+#		classe FileManager "nettoyée" 
+#		
+
+
+class FileManager:
+    def __init__(self , file_selector : IFileSelector , file_system : IFileSystem , ui : IUserInterface) :
+        self.file_selector = file_selector
+        self.file_system = file_system
+        self.ui = ui
+
     def copy_files(self, destination):
         """Copy selected files"""
         try:
             selected_files = self.file_selector.get_selected_files()
+            count = 0
             for file in selected_files:
-                if os.path.exists(file):
-                    shutil.copy2(file, destination)
-            print(f"{len(selected_files)} file(s) copied")
+                if self.file_system.exists(file):
+                    self.file_system.copy(file, destination)
+                    count += 1
+            self.ui.display(f"{count} file(s) copied")
             self.file_selector.clear_selection()
         except Exception as e:
-            print(f"Copy error: {e}")
+            self.ui.display(f"Copy error: {e}")
 
     def move_files(self, destination):
         """Move selected files"""
         try:
             selected_files = self.file_selector.get_selected_files()
+            count = 0
             for file in selected_files:
-                if os.path.exists(file):
-                    shutil.move(file, destination)
-            print(f"{len(selected_files)} file(s) moved")
+                
+                if self.file_system.exists(file):
+                    self.file_system.move(file, destination)
+                    count += 1
+                    
+            self.ui.display(f"{count} file(s) moved")
             self.file_selector.clear_selection()
         except Exception as e:
-            print(f"Move error: {e}")
+            self.ui.display(f"Move error: {e}")
 
     def delete_files(self):
         """Delete selected files"""
         try:
             selected_files = self.file_selector.get_selected_files()
+            count = 0
             for file in selected_files:
-                if os.path.isfile(file):
-                    os.remove(file)
-                elif os.path.isdir(file):
-                    shutil.rmtree(file)
-            print(f"{len(selected_files)} file(s)/folder(s) deleted")
+                
+                if self.file_system.is_file(file):
+                    self.file_system.remove_file(file)
+                    count += 1
+                elif self.file_system.is_dir(file):
+                    self.file_system.remove_dir(file)
+                    count += 1
+                    
+            self.ui.display(f"{count} file(s)/folder(s) deleted")
             self.file_selector.clear_selection()
         except Exception as e:
-            print(f"Delete error: {e}")
+            self.ui.display(f"Delete error: {e}")
 
 
 def main_menu():
-    file_manager = FileManager()
+    file_system = RealFileSystem()
+    console_ui = ConsoleUI()
+    
+    file_selector = FileSelector()
+    file_explorer = FileExplorer(file_selector)
+    file_manager = FileManager(file_selector , file_system , console_ui)
+    
+	
     
     while True:
         print("\n--- File Explorer ---")
@@ -161,19 +228,19 @@ def main_menu():
         
         try:
             if choice == '1':
-                file_manager.display_directory_contents()
+                file_explorer.display_directory_contents()
             
             elif choice == '2':
                 index = int(input("Enter navigation index: "))
-                file_manager.navigate(index)
+                file_explorer.navigate(index)
             
             elif choice == '3':
-                file_manager.go_to_parent_directory()
+                file_explorer.go_to_parent_directory()
             
             elif choice == '4':
-                file_manager.display_directory_contents()
+                file_explorer.display_directory_contents()
                 indices = input("Enter file indices to select (comma-separated): ")
-                file_manager.file_selector.select_files_by_indices(indices, file_manager.current_path)
+                file_selector.select_files_by_indices(indices, file_explorer.current_path)
             
             elif choice == '5':
                 dest = input("Enter destination path for copying: ")
